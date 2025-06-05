@@ -11,9 +11,9 @@
 # Overview
 **Diffusion via Autoregressive models (D-AR)** recast diffusion on pixels to sequential token generation with a Llama backbone by the standard next token prediction.
 
-The hyphen - in *D-AR* means symbolizes the bridge between diffusion and autoregressive modeling. However, feel free to refer to it simply as DAR.
+The hyphen - in D-AR symbolizes the bridge between diffusion and autoregressive modeling. However, feel free to refer to it simply as DAR.
 
-*D-AR* is a long-term project. We're actively developing improved tokenizers trained on larger datasets with higher resolutions, and exploring text-to-image generation models. Stay tuned for updates!
+D-AR is a long-term project. We're actively developing improved tokenizers trained on larger datasets with higher resolutions, and exploring text-to-image generation models. Stay tuned for updates!
 
 # Pretrained Models
 **Sequential diffusion tokenizer** trained on ImageNet:
@@ -36,7 +36,7 @@ The majority of this project is licensed under MIT License. Portions of the proj
 
 
 # Acknowledgement
-Our codebase is main based on [LlamaGen](https://github.com/FoundationVision/LlamaGen/tree/main/tokenizer), and incorporates components from several existing repositories. We gratefully acknowledge the contributions of the community and these codebases, without which our codebase would not have been built such clearly:
+Our codebase is mainly based on [LlamaGen](https://github.com/FoundationVision/LlamaGen/tree/main/tokenizer), and incorporates components from several existing repositories. We gratefully acknowledge the contributions of the community and these codebases, without which our codebase would not have been built such clearly:
 ```
 tokenizer/tokenizer_image/utils_repa.py from https://github.com/sihyun-yu/REPA
 tokenizer/tokenizer_image/tokenizer_transformer.py rope-relevant stuff from https://github.com/black-forest-labs/flux
