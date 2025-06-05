@@ -12,5 +12,5 @@ bash scripts/autoregressive/sample_c2i.sh --gpt-model GPT-L \
     --sample-dir ar_samples
 
 
-python evaluations/c2i/evaluator.py VIRTUAL_imagenet256_labeled.npz ../dit_github_private/ar_samples/GPT-L-D-AR-L-360K-size-256-size-256-VQ-16-topk-0-topp-1.0-temperature-1.0-cfg-1.2,8.0-seed-0-None.npz
+python evaluations/c2i/evaluator.py VIRTUAL_imagenet256_labeled.npz ar_samples/GPT-L-D-AR-L-360K-size-256-size-256-VQ-16-topk-0-topp-1.0-temperature-1.0-cfg-1.2,8.0-seed-0-None.npz
  
