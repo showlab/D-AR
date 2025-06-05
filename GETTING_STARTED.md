@@ -37,11 +37,11 @@ See `eval_recon_rfid.sh`.
 See `sample_tokenizer.py`.
 
 ### Train a D-AR model
-The training script is provided as [debug_train_c2i.sh](debug_train_c2i.sh), based on `accelerate`. We here tokenize images on-the-fly during training, which different from original LlamaGen training logistic.
+The training script is provided as [debug_train_c2i.sh](debug_train_c2i.sh), based on `accelerate`. Note that we here tokenize images on-the-fly during training.
 
 ### Evaluate D-AR models
-See `eval_c2i_fid.sh`.
+See [eval_c2i_fid.sh](eval_c2i_fid.sh).
 
 
 ### Sample Images from D-AR models
-See `sample_dar.sh`.
+See [sample_dar.sh](sample_dar.sh).
