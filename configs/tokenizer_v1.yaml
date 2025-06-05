@@ -1,0 +1,36 @@
+model:
+  encoder_patch_size: 16
+
+  num_encoder_layers: 8
+  num_decoder_layers: 8
+
+
+  query_low_rank: true
+
+  encoder_dim: 768
+  decoder_dim: 768
+
+  vq_dim: 8
+  vq_codebook_size: 16384
+
+  num_denoising_steps: 8
+  num_query_groups: 8
+  num_all_queries: 256
+  queries_per_step: 32
+
+  vq_enable: true
+
+  diff_decoder:
+    in_dim: 3
+    out_dim: 3
+    dim: 768
+    cond_dim: 768
+    patch_size: 8
+    depth: 12
+
+    data_std: 0.6
+    
+    time_shift: 2
+
+    mlp_head: false
+    share_time_encoding: false
