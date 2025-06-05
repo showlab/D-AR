@@ -19,13 +19,13 @@ The hyphen - in *D-AR* means symbolizes the bridge between diffusion and autoreg
 **Sequential diffusion tokenizer** trained on ImageNet:
 | model | Params | rFID | resolution |
 |-------|  ----  |------| ---------- |
-| [DAR tokenizer v1](https://huggingface.co/showlab/D-AR/resolve/main/D-AR-tokenizer_v1.pt) | 300M | 1.52 | 256x256 |
+| [D-AR tokenizer v1](https://huggingface.co/showlab/D-AR/resolve/main/D-AR-tokenizer_v1.pt) | 300M | 1.52 | 256x256 |
 
 **DAR models** trained on ImageNet 256x256:
 | model | Params | tokenizer | gFID | IS |
 |-------|  ----  | --------- | ------| -- |
-| [DAR-L](https://huggingface.co/showlab/D-AR/resolve/main/D-AR-L-360K.pt) | 343M | DAR tokenizer v1|  2.44 | 262.9 |
-| [DAR-XL](https://huggingface.co/showlab/D-AR/resolve/main/D-AR-XL-360K.pt) | 775M | DAR tokenizer v1 | 2.09 | 298.4 |
+| [D-AR-L](https://huggingface.co/showlab/D-AR/resolve/main/D-AR-L-360K.pt) | 343M | D-AR tokenizer v1|  2.44 | 262.9 |
+| [D-AR-XL](https://huggingface.co/showlab/D-AR/resolve/main/D-AR-XL-360K.pt) | 775M | D-AR tokenizer v1 | 2.09 | 298.4 |
 
 
 # Getting Started
