@@ -29,14 +29,14 @@ D-AR is a long-term project. We're actively developing improved tokenizers train
 
 
 # Getting Started
-See [GETTING_STARTED.md](GETTING_STARTED.md) for installation and script usage details.
+See [GETTING_STARTED.md](GETTING_STARTED.md) for details on installation and script usage.
 
 # License
-The majority of this project is licensed under MIT License. Portions of the project are available under separate license of referred projects, detailed in corresponding files.
+The majority of this project is licensed under MIT License. Portions of the project are available under separate licenses of referred projects, detailed in corresponding files.
 
 
 # Acknowledgement
-Our codebase is mainly based on [LlamaGen](https://github.com/FoundationVision/LlamaGen/tree/main/tokenizer), and incorporates components from several existing repositories. We gratefully acknowledge the contributions of the community and these codebases, without which our codebase would not have been built such clearly:
+Our codebase is mainly based on [LlamaGen](https://github.com/FoundationVision/LlamaGen/tree/main/tokenizer) and incorporates components from several existing repositories. We gratefully acknowledge the contributions of the community and these codebases, without which our codebase would not have been built such clearly:
 ```
 tokenizer/tokenizer_image/utils_repa.py from https://github.com/sihyun-yu/REPA
 tokenizer/tokenizer_image/tokenizer_transformer.py rope-relevant stuff from https://github.com/black-forest-labs/flux

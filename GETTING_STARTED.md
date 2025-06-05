@@ -13,17 +13,17 @@ python tokenizer/tokenizer_image/utils_repa.py # Download REPA DINO and perform 
 ```
 **IMPORTANT:**
 We use `accelerate` to train our sequential diffusion tokenizer and D-AR models on multi GPU nodes.
-Please get yourself familar with `accelerate` before proceeding.
+Please get yourself familiar with `accelerate` before proceeding.
 While the provided demo training scripts are designed for single-node training, they can be easily configured for multi-node setups by modifying relevant parameters.
-Besides, you may need to modify `batch_size` or `global_batch_size` accordingly.
+You may also need to modify `batch_size` or `global_batch_size` accordingly.
 
 ### Train or Finetune a Sequential Diffusion Tokenizer
 The training script is provided as [debug_train_tokenizer.sh](debug_train_tokenizer.sh), based on `accelerate`.
-```
+```shell
 bash debug_train_tokenizer.sh
 ```
 
-You can simply finetune a sequential diffusion tokenizer from a checkpoint, e.g., `temp/tokenizer_v1.pt`, by appending this argument to above script:
+You can simply finetune a sequential diffusion tokenizer from a checkpoint, e.g., `temp/tokenizer_v1.pt`, by appending this argument to the above script:
 ```
 --vq-ckpt temp/tokenizer_v1.pt
 ```
@@ -31,13 +31,13 @@ You can simply finetune a sequential diffusion tokenizer from a checkpoint, e.g.
 We provide several dataset interface supports (webdataset, huggingface datasets, or simply folder). You can finetune our tokenizers with your own dataset by varying the `--data-path` argument. It can start with `wds://` or `datasets://` with remote streaming data loading (see [dar_tool.py](dar_tool.py) for details.)
 
 ### Evaluate the Sequential Diffusion Tokenizer
-See `eval_recon_rfid.sh`.
+See [eval_recon_rfid.sh](eval_recon_rfid.sh).
 
 ### Visualize the Sequential Diffusion Tokenizer
-See `sample_tokenizer.py`.
+See [sample_tokenizer.py](sample_tokenizer.py).
 
 ### Train a D-AR model
-The training script is provided as [debug_train_c2i.sh](debug_train_c2i.sh), based on `accelerate`. Note that we here tokenize images on-the-fly during training.
+The training script is provided as [debug_train_c2i.sh](debug_train_c2i.sh), also based on `accelerate`. Note that we here tokenize images on the fly during training, which may not be optimal for training throughput.
 
 ### Evaluate D-AR models
 See [eval_c2i_fid.sh](eval_c2i_fid.sh).
