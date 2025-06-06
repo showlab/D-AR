@@ -1,3 +1,17 @@
+## Code Structure
+Here’s an overview at the code layout and key modules:
+
+|module|path|
+| -- | -- |
+| Tokenizer train script | [vq_train_accelerate.py](tokenizer/tokenizer_image/vq_train_accelerate.py) |
+| Sequential diffusion tokenizer | [vq_model.py](tokenizer/tokenizer_image/vq_model.py) |
+| Sequential diffusion decoder | [diff_decoder.py](tokenizer/tokenizer_image/diff_decoder.py)|
+| Tokenizer loss  | [vq_loss.py](tokenizer/tokenizer_image/vq_loss.py) |
+| **---** | **---** |
+| AR train script | [train_c2i_accelerate.py](autoregressive/train/train_c2i_accelerate.py) |
+| AR Llama backbones | [gpt.py](autoregressive/models/gpt.py) (basically unchanged from LlamaGen) |
+| AR generate logic | [generate.py](autoregressive/models/generate.py) |
+
 ## Getting Started
 ### Requirements
 - PyTorch ≥ 2.1
