@@ -1,4 +1,6 @@
 # D-AR: Diffusion via Autoregressive Models
+![Banner description](assets/banner.png)
+
 > [Ziteng Gao](https://sebgao.github.io/), [Mike Zheng Shou](https://sites.google.com/view/showlab)
 > <br>Show Lab, National University of Singapore<br>
 
