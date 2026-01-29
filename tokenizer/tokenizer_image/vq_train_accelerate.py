@@ -118,21 +118,12 @@ def main(args):
     vq_model = vq_model.to(device)
 
     vq_loss = VQLoss(
-        disc_start=args.disc_start, 
-        disc_weight=args.disc_weight,
         dino_weight=args.dino_weight,
-        disc_type=args.disc_type,
-        disc_loss=args.disc_loss,
-        gen_adv_loss=args.gen_loss,
-        image_size=args.image_size,
         perceptual_weight=args.perceptual_weight,
         reconstruction_weight=args.reconstruction_weight,
         reconstruction_loss=args.reconstruction_loss,
         codebook_weight=args.codebook_weight,  
     ).to(device)
-
-    vq_loss = vq_loss.to(device)
-    logger.info(f"Discriminator Parameters: {sum(p.numel() for p in vq_loss.discriminator.parameters()):,}")
 
 
     # Setup optimizer
@@ -144,18 +135,8 @@ def main(args):
         learnable_parameters.append(param)
         names.append(name)
 
-    disc_learnable_parameters = []
-    names = []
-    for name, param in vq_loss.discriminator.named_parameters():
-        if not param.requires_grad:
-            continue
-        disc_learnable_parameters.append(param)
-        names.append(name)
-
     optimizer = torch.optim.AdamW(learnable_parameters, lr=args.lr, betas=(args.beta1, args.beta2),
                                   weight_decay=args.weight_decay)
-    optimizer_disc = torch.optim.AdamW(disc_learnable_parameters, lr=args.lr, betas=(args.beta1, args.beta2),
-                                       weight_decay=args.weight_decay)
 
     def adjust_learning_rate(step, warmup_steps=10000, lr_cosine_end_steps=0, min_coeff=0.1):
         # In our experiments, we do not use lr cosine decay
@@ -239,12 +220,7 @@ def main(args):
                 logger.info("EMA load failed; initialize EMA; this is expected when you change the architecture")
                 update_ema(ema, vq_model, decay=0)
         
-        try:
-            vq_loss.discriminator.load_state_dict(checkpoint["discriminator"])
-            optimizer_disc.load_state_dict(checkpoint["optimizer_disc"])
-        except:
-            logger.info("load GAN model failed")
-            pass
+        # Discriminator loading removed - no longer using GAN training
 
         try:
             train_steps = checkpoint["steps"] if "steps" in checkpoint else int(args.vq_ckpt.split('/')[-1].split('.')[0])
@@ -272,8 +248,8 @@ def main(args):
         vq_model = torch.compile(vq_model)  # requires PyTorch 2.0
 
     # Use accelerator.prepare to handle distributed training, mixed precision, etc.
-    vq_model, vq_loss, optimizer, optimizer_disc, = accelerator.prepare(
-        vq_model, vq_loss, optimizer, optimizer_disc
+    vq_model, vq_loss, optimizer = accelerator.prepare(
+        vq_model, vq_loss, optimizer
     )
 
     loader = accelerator.prepare_data_loader(loader)
@@ -304,14 +280,14 @@ def main(args):
             adjust_learning_rate(train_steps, args.warmup_steps, args.lr_cosine_end_steps)
             # (Accelerate automatically puts tensors on the correct device)
 
-            # Generator training
+            # Training step
             optimizer.zero_grad()
             with accelerator.autocast():
                 recons_imgs, codebook_loss = vq_model(imgs)
                 loss_gen = vq_loss(
-                    codebook_loss, imgs, recons_imgs, optimizer_idx=0,
-                    global_step=train_steps+1, last_layer=None,
-                    logger=logger, log_every=args.log_every, use_gan=args.use_gan
+                    codebook_loss, imgs, recons_imgs,
+                    global_step=train_steps+1,
+                    logger=logger, log_every=args.log_every
                 )
             accelerator.backward(loss_gen)
 
@@ -329,20 +305,7 @@ def main(args):
                 # Unwrap the model to update EMA
                 update_ema(ema, accelerator.unwrap_model(vq_model), decay=0.999)
 
-            # Discriminator training (currently commented out)
-            if args.use_gan and train_steps >= args.disc_start:
-                optimizer_disc.zero_grad()
-                with accelerator.autocast():
-                    loss_disc = vq_loss(
-                        codebook_loss, imgs, recons_imgs, optimizer_idx=1,
-                        global_step=train_steps+1, logger=logger, log_every=args.log_every, use_gan=args.use_gan
-                    )
-                accelerator.backward(loss_disc)
-                if args.max_grad_norm != 0.0:
-                    if accelerator.sync_gradients:
-                        accelerator.unscale_gradients(optimizer_disc)
-                        # grad_norm_disc = accelerator.clip_grad_norm_(vq_loss.parameters(), args.max_grad_norm)
-                optimizer_disc.step()
+
 
             running_loss += loss_gen.item()
             log_steps += 1
@@ -369,8 +332,6 @@ def main(args):
                     checkpoint = {
                         "model": model_state,
                         "optimizer": optimizer.state_dict(),
-                        "discriminator": accelerator.unwrap_model(vq_loss).discriminator.state_dict(),
-                        "optimizer_disc": optimizer_disc.state_dict(),
                         "steps": train_steps,
                         "args": args,
                         "config": config,
@@ -394,8 +355,6 @@ def main(args):
                     checkpoint = {
                         "model": model_state,
                         "optimizer": optimizer.state_dict(),
-                        "discriminator": accelerator.unwrap_model(vq_loss).discriminator.state_dict(),
-                        "optimizer_disc": optimizer_disc.state_dict(),
                         "steps": train_steps,
                         "args": args,
                         "config": config,
@@ -431,13 +390,7 @@ if __name__ == "__main__":
     parser.add_argument("--reconstruction-loss", type=str, default="l2", help="reconstruction loss type of image pixel")
     parser.add_argument("--perceptual-weight", type=float, default=0.5, help="perceptual loss weight of LPIPS")
     parser.add_argument("--dino-weight", type=float, default=0.5, help="perceptual loss weight of LPIPS")
-    parser.add_argument("--disc-weight", type=float, default=0.5, help="discriminator loss weight for GAN training")
-    parser.add_argument("--disc-start", type=int, default=20000, help="iteration to start discriminator training and loss")
-    parser.add_argument("--disc-type", type=str, choices=["patchgan", "stylegan"], default="patchgan", help="discriminator type")
-    parser.add_argument("--disc-loss", type=str, choices=["hinge", "vanilla", "non-saturating"], default="hinge", help="discriminator loss")
-    parser.add_argument("--gen-loss", type=str, choices=["hinge", "non-saturating"], default="hinge", help="generator loss for GAN training")
     parser.add_argument("--compile", action="store_true", default=False)
-    parser.add_argument("--use-gan", action="store_true", default=False)
     parser.add_argument("--dropout-p", type=float, default=0.0, help="dropout probability")
     parser.add_argument("--results-dir", type=str, default="results_tokenizer_image")
     parser.add_argument("--dataset", type=str, default="imagenet")
