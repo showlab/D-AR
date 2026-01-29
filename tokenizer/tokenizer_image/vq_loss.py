@@ -8,25 +8,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from tokenizer.tokenizer_image.lpips import LPIPS
+from tokenizer.tokenizer_image.vq_types import VQCodebookLoss, DiffusionAux
 from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 from torchvision.transforms import Normalize
 
 
 def preprocess_raw_image(x, enc_type):
-    if 'clip' in enc_type:
-        x = torch.nn.functional.interpolate(x, 224, mode='bicubic')
-        x = Normalize(CLIP_DEFAULT_MEAN, CLIP_DEFAULT_STD)(x)
-    elif 'mocov3' in enc_type or 'mae' in enc_type:
-        x = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(x)
-    elif 'dinov2' in enc_type:
-        x = 0.5*x + 0.5
-        x = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(x)
-        x = torch.nn.functional.interpolate(x, 224, mode='bicubic')
-    elif 'dinov1' in enc_type:
-        x = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(x)
-    elif 'jepa' in enc_type:
-        x = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(x)
-        x = torch.nn.functional.interpolate(x, 224, mode='bicubic')
+    assert 'dinov2' in enc_type
+    x = 0.5*x + 0.5
+    x = Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD)(x)
+    height, width = x.size(2), x.size(3)
+    new_height = math.ceil(height/256 * 224)
+    new_width = math.ceil(width/256 * 224)
+    x = torch.nn.functional.interpolate(x, (new_height, new_width), mode='bicubic')
 
     return x
 
@@ -93,13 +87,26 @@ class VQLoss(nn.Module):
         self.tracker3 = LossTracker()
         self.tracker4 = LossTracker()
 
-    def forward(self, codebook_loss, inputs, reconstructions, global_step, 
-                logger=None, log_every=100, vq_loss_start_step=None):
-        predict_x1, xt, t, h_repa, fake, real = reconstructions
+    def forward(self, codebook_loss: VQCodebookLoss, inputs: torch.Tensor, 
+                diff_aux: DiffusionAux, diff_loss: torch.Tensor,
+                global_step: int, logger=None, log_every=100, vq_loss_start_step=None):
+        """
+        Compute the total loss for VQ-VAE training.
+        
+        Args:
+            codebook_loss: VQCodebookLoss dataclass with VQ loss components
+            inputs: Original input images
+            reconstructions: DiffusionAux dataclass with reconstruction outputs
+            diff_loss: Diffusion feature matching loss
+            global_step: Current training step
+            logger: Logger for metrics
+            log_every: Logging frequency
+            vq_loss_start_step: Step to start VQ loss (optional warmup)
+        """
         repa_input = preprocess_raw_image(inputs, self.repa_type)
         repa_features = self.repa_encoder.forward_features(repa_input)['x_norm_patchtokens']
 
-        cosp = F.cosine_similarity(repa_features, h_repa, dim=-1)
+        cosp = F.cosine_similarity(repa_features, diff_aux.h_repa, dim=-1)
         loss_repa = (1.0-cosp).mean()
 
         if vq_loss_start_step is not None and global_step < vq_loss_start_step:
@@ -109,24 +116,30 @@ class VQLoss(nn.Module):
         vq_loss_weight = 1.0
         
         # perceptual loss
-        p_loss = self.perceptual_loss(inputs.contiguous().float(), predict_x1.contiguous().float())
-        te = t.view(-1, 1, 1, 1)
+        p_loss = self.perceptual_loss(
+            inputs.contiguous().float(),
+            diff_aux.predict_x1.contiguous().float())
+
+        te = diff_aux.t.view(-1, 1, 1, 1)
         if self.perceptual_weight >= 0:
             p_weight = 1.0
         else:
             p_weight = (te*2).float()
         p_loss = torch.mean(p_loss*p_weight)
 
-        fm_loss = codebook_loss[-1]
+        # Total loss computation
+        loss = (vq_loss_weight * (codebook_loss.vq_loss + codebook_loss.commit_loss + codebook_loss.entropy_loss) + 
+                diff_loss +
+                abs(self.perceptual_weight) * p_loss +
+                self.dino_weight * loss_repa)
 
-        loss = (vq_loss_weight * (codebook_loss[0] + codebook_loss[1] + codebook_loss[2]) + 
-                fm_loss + abs(self.perceptual_weight) * p_loss + self.dino_weight * loss_repa)
-
-        self.tracker1.add_loss(fm_loss)
+        self.tracker1.add_loss(diff_loss)
         self.tracker2.add_loss(p_loss)
         self.tracker3.add_loss(loss_repa)
         
         if global_step % log_every == 0:
-            logger.info(f"vq_loss: {codebook_loss[0]:.4f}, commit_loss: {codebook_loss[1]:.4f}, entropy_loss: {codebook_loss[2]:.4f}, codebook_usage: {codebook_loss[3]:.4f}, dead_rate: {codebook_loss[4]:.4f}")
+            logger.info(f"vq_loss: {codebook_loss.vq_loss:.4f}, commit_loss: {codebook_loss.commit_loss:.4f}, "
+                       f"entropy_loss: {codebook_loss.entropy_loss:.4f}, codebook_usage: {codebook_loss.codebook_usage:.4f}, "
+                       f"dead_rate: {codebook_loss.dead_code_rate:.4f}")
             logger.info(f"fm_loss: {self.tracker1.ema_loss:.4f}, perceptual_loss: {self.tracker2.ema_loss:.4f}, repa loss: {self.tracker3.ema_loss:.4f}")
         return loss

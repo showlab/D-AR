@@ -11,6 +11,9 @@ from einops import rearrange, repeat
 
 from tokenizer.tokenizer_image.tokenizer_transformer import TransformerBlock, EmbedND2DMaker
 from tokenizer.tokenizer_image.diff_decoder import SequentialDiffusionDecoder
+from tokenizer.tokenizer_image.vq_types import (
+    VQCodebookLoss, VQQuantizerOutput, VQEncoderOutput, VQModelOutput
+)
 
 class VQModel(nn.Module):
     def __init__(self, config: dict):
@@ -123,25 +126,29 @@ class VQModel(nn.Module):
         tokens = rearrange(tokens, 'b n c -> b c 1 n', n=self.all_queries)
 
         tokens = self.quant_in_conv(tokens)
-        quant, emb_loss, info = self.quantize(tokens, query_ids=query_ids)
+        vq_output = self.quantize(tokens, query_ids=query_ids)
 
         if just_code:
-            return info
+            return vq_output.indices
 
-        cond = self.decoder_layers_forward(quant)
+        cond = self.decoder_layers_forward(vq_output.quantized)
 
         if self.training:
             cond = cond[torch.arange(cond.size(0)).view(-1, 1), query_ids]
 
             diff_target = x
-            diff_loss, aux_tuple = self.diff_decoder.forward(diff_target, cond, time_steps=time_steps)
+            diff_loss, aux_recons = self.diff_decoder.forward(diff_target, cond, time_steps=time_steps)
         else:
-            diff_loss = 0.0
-            aux_tuple = None
+            diff_loss = torch.tensor(0.0, device=x.device)
+            aux_recons = None
 
-
-        emb_loss = list(emb_loss) + [diff_loss,]
-        return quant, emb_loss, info, cond, aux_tuple
+        return VQEncoderOutput(
+            quantized=vq_output.quantized,
+            codebook_loss=vq_output.loss,
+            indices=vq_output.indices,
+            cond=cond,
+            aux_recons=aux_recons
+        ), diff_loss
 
     def decode(self, cond, steps=50, cfg=1.0):
         if not self.training:
@@ -151,9 +158,10 @@ class VQModel(nn.Module):
         return dec
 
     def extract_code(self, x):
-        info = self.encode(x, just_code=True)
-        code = info[-1] if info is not None else None
-        code = code.reshape(x.size(0), -1)
+        indices = self.encode(x, just_code=True)
+        code = indices if indices is not None else None
+        if code is not None:
+            code = code.reshape(x.size(0), -1)
         return code
 
     def decoder_layers_forward(self, quant):
@@ -198,12 +206,12 @@ class VQModel(nn.Module):
     def straight_forward(self,
                          x,
                          clip_steps=None):
-        quant, diff, misc, cond, recon = self.encode(x)
+        encoder_output, diff_loss = self.encode(x)
 
         height = max(self.sampling_resolution, x.size(2))
         width = max(self.sampling_resolution, x.size(3))
 
-        dec = self.decode_into_pixels(cond, height, width, clip_steps=clip_steps)
+        dec = self.decode_into_pixels(encoder_output.cond, height, width, clip_steps=clip_steps)
         output_resolution = self.output_resolution
         if output_resolution != 0 and (height > output_resolution or width > output_resolution):
             dec = F.interpolate(dec, size=(output_resolution, output_resolution), mode='bicubic', align_corners=False)
@@ -236,9 +244,13 @@ class VQModel(nn.Module):
     def forward(self, input, **kwargs):
         if not self.training:
             return self.straight_forward(input, **kwargs)
-        quant, diff, _, cond, recon = self.encode(input)
-        dec = self.decode(cond, **kwargs)
-        return recon, diff
+        encoder_output, diff_loss = self.encode(input)
+        dec = self.decode(encoder_output.cond, **kwargs)
+        return VQModelOutput(
+            reconstructions=encoder_output.aux_recons,
+            codebook_loss=encoder_output.codebook_loss,
+            diff_loss=diff_loss
+        )
 
 
 class VectorQuantizer(nn.Module):
@@ -332,8 +344,18 @@ class VectorQuantizer(nn.Module):
         # reshape back to match original input shape
         z_q = torch.einsum('b h w c -> b c h w', z_q)
 
-
-        return z_q, (vq_loss, commit_loss, entropy_loss, codebook_usage, dead_code_rate), (perplexity, min_encodings, min_encoding_indices)
+        loss = VQCodebookLoss(
+            vq_loss=vq_loss,
+            commit_loss=commit_loss,
+            entropy_loss=entropy_loss,
+            codebook_usage=codebook_usage,
+            dead_code_rate=dead_code_rate
+        )
+        return VQQuantizerOutput(
+            quantized=z_q,
+            loss=loss,
+            indices=min_encoding_indices
+        )
 
     def get_codebook_entry(self, indices, shape=None, channel_first=True):
         if self.l2_norm:
@@ -362,7 +384,18 @@ class LNBottleneck(nn.Module):
 
         loss_kld = x.mean()
         zeros = torch.zeros_like(loss_kld)
-        return x, (zeros, zeros, zeros, zeros), None 
+        loss = VQCodebookLoss(
+            vq_loss=zeros,
+            commit_loss=zeros,
+            entropy_loss=zeros,
+            codebook_usage=0.0,
+            dead_code_rate=0.0
+        )
+        return VQQuantizerOutput(
+            quantized=x,
+            loss=loss,
+            indices=None
+        ) 
 
 
 def compute_entropy_loss(affinity, loss_type="softmax", temperature=0.01):

@@ -13,6 +13,7 @@ from timm.layers.mlp import Mlp
 
 from tokenizer.tokenizer_image.patching import Patcher, UnPatcher
 from tokenizer.tokenizer_image.tokenizer_transformer import Attention, EmbedND2DMaker
+from tokenizer.tokenizer_image.vq_types import DiffusionAux
 
 
 
@@ -68,8 +69,15 @@ class SequentialDiffusionDecoder(nn.Module):
 
         unscaled_xt = xt/self.std
 
-
-        return fm_loss, [fake, unscaled_xt, time_steps, h_repa, fake, real]
+        aux = DiffusionAux(
+            predict_x1=fake,
+            xt=unscaled_xt,
+            t=time_steps,
+            h_repa=h_repa,
+            fake=fake,
+            real=real
+        )
+        return fm_loss, aux
 
     def sample(self, zs, timesteps, method="adams2", clip_steps=None, height=None, width=None, start_steps=None, start_x=None):
         z = zs[0]

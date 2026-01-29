@@ -28,6 +28,7 @@ from dataset.augmentation import random_crop_arr, center_crop_arr
 from dataset.build import build_dataset
 from tokenizer.tokenizer_image.vq_model import VQModel
 from tokenizer.tokenizer_image.vq_loss import VQLoss
+from tokenizer.tokenizer_image.vq_types import VQModelOutput
 
 warnings.filterwarnings("ignore")
 
@@ -283,9 +284,12 @@ def main(args):
             # Training step
             optimizer.zero_grad()
             with accelerator.autocast():
-                recons_imgs, codebook_loss = vq_model(imgs)
+                model_output: VQModelOutput = vq_model(imgs)
                 loss_gen = vq_loss(
-                    codebook_loss, imgs, recons_imgs,
+                    model_output.codebook_loss,
+                    imgs,
+                    model_output.reconstructions,
+                    model_output.diff_loss,
                     global_step=train_steps+1,
                     logger=logger, log_every=args.log_every
                 )
